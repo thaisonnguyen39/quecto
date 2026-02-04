@@ -3,6 +3,44 @@
 #include <stdbool.h>
 #include <assert.h>
 
+int int_from_str(const char* a, size_t len) {
+    int tens = 1;
+    int accum = 0;
+    for (int i = len - 1; i >= 0; i--) {
+        accum += (a[i] - '0') * tens;
+        tens *= 10;
+    }
+    return accum;
+}
+
+float float_from_str(const char* a, size_t len) {
+    float accum = 0;
+    int decimal = len, exponent = -1;
+    float tens = 1;
+
+    for (int i = 0; i < len; i++) {
+        if (a[i] == '.') {
+            decimal = i;
+        }
+        if (a[i] == 'e' || a[i] == 'E') {
+            exponent = i; // TODO : ADD EXPONENT support
+        }
+    }
+
+    for (int i = decimal - 1; i >= 0; i--) {
+        accum += (a[i] - '0') * tens;
+        tens *= 10;
+    }
+
+    tens = 0.1;
+    for (int i = decimal + 1; i < len; i++) {
+        accum += (a[i] - '0') * tens;
+        tens /= 10;
+    }
+
+    return accum;
+}
+
 bool is_number(char c) {
     return '0' <= c && c <= '9';
 }
@@ -13,9 +51,10 @@ typedef enum {
     TOKEN_MULTIPLY,
     TOKEN_DIVIDE,
     TOKEN_NUMBER,
+    TOKEN_FLOAT,
     TOKEN_EOF,
 
-    TOKEN_COUNT // Make sure this token is the last one 
+    TOKEN_COUNT // Make sure this token is the last one
                 // listed in the enum, as this is assumed by compile time assertions
 } TokenType;
 
@@ -25,6 +64,7 @@ const char *token_to_string_table[] = {
     [TOKEN_MULTIPLY] = "*",
     [TOKEN_DIVIDE] = "/",
     [TOKEN_NUMBER] = "number",
+    [TOKEN_FLOAT] = "float",
     [TOKEN_EOF] = "end of file"
 };
 
@@ -35,6 +75,7 @@ typedef struct {
     TokenType type;
     union {
         unsigned int number;
+        float real;
     };
 } Token;
 
@@ -45,6 +86,7 @@ void print_token(Token tok) {
         case TOKEN_MULTIPLY: printf("*\n"); break;
         case TOKEN_DIVIDE:   printf("/\n"); break;
         case TOKEN_NUMBER:   printf("%u\n", tok.number); break;
+        case TOKEN_FLOAT:    printf("%.2f\n", tok.real); break;
         case TOKEN_EOF:      printf("EOF\n"); break;
     }
 }
@@ -73,7 +115,8 @@ typedef struct {
 
 typedef enum {
     AST_BINARY_OP,
-    AST_NUMBER
+    AST_NUMBER,
+    AST_FLOAT,
 } ASTType;
 
 typedef enum {
@@ -92,6 +135,7 @@ typedef struct AST {
             struct AST *right;
         };
         unsigned int number;
+        float real;
     };
 } AST;
 
@@ -139,15 +183,33 @@ Token get_next_token(ParserState *parser) {
 }
 
 AST *parse_expression(ParserState *parser, int min_prec) {
-    if (!match_next_token(parser, TOKEN_NUMBER)) {
-        return NULL;
+    switch (peek_next_token(parser)) {
+        case TOKEN_FLOAT:
+        case TOKEN_NUMBER:
+            break;
+        default:
+            printf("parsing error: expected a \"number\" or a \"float\" but got a \"%s\" instead\n",
+                    token_to_string_table[peek_next_token(parser)]);
+            parser->error = true;
+            return NULL;
     }
+    // if (!match_next_token(parser, TOKEN_FLOAT)) {
+        // return NULL;
+    // }
 
     Token tok = get_next_token(parser);
 
     AST *left = (AST *)malloc(sizeof(AST));
-    left->type = AST_NUMBER;
-    left->number = tok.number;
+
+    switch (tok.type) {
+        case TOKEN_NUMBER:
+            left->type = AST_NUMBER;
+            left->number = tok.number;
+            break;
+        case TOKEN_FLOAT:
+            left->type = AST_FLOAT;
+            left->real = tok.real;
+    }
 
     if (peek_next_token(parser) == TOKEN_EOF) return left;
 
@@ -184,27 +246,63 @@ AST *parse_expression(ParserState *parser, int min_prec) {
 
         left = op;
     }
-    
+
     return left;
 };
 
-unsigned int evaluate_ast(AST *ast) {
-    if (ast->type == AST_NUMBER) return ast->number;
+AST evaluate_ast(AST *ast) {
+    switch (ast->type) {
+        case AST_BINARY_OP:
+            {
+            AST ret = {0};
+            AST left = evaluate_ast(ast->left);
+            AST right = evaluate_ast(ast->right);
 
-    unsigned int left = evaluate_ast(ast->left);
-    unsigned int right = evaluate_ast(ast->right);
+            ret.type = (left.type == AST_NUMBER && right.type == AST_FLOAT || left.type == AST_FLOAT && right.type) ? AST_FLOAT : AST_NUMBER; // promotion
 
-    // TODO: actually check for type here later when more AST types are added
-    switch (ast->op) {
-        case OP_PLUS:
-            return left + right;
-        case OP_MINUS:
-            return left - right;
-        case OP_MULTIPLY:
-            return left * right;
-        case OP_DIVIDE:
-            return left / right;
+            switch (ret.type) {
+                case AST_NUMBER:
+                switch (ast->op) {
+                    case OP_PLUS:
+                        ret.number = (unsigned int) ((left.type == AST_FLOAT ? left.real : left.number) + (right.type == AST_FLOAT ? right.real : right.number));
+                        break;
+                    case OP_MINUS:
+                        ret.number = (unsigned int) ((left.type == AST_FLOAT ? left.real : left.number) - (right.type == AST_FLOAT ? right.real : right.number));
+                        break;
+                    case OP_MULTIPLY:
+                        ret.number = (unsigned int) ((left.type == AST_FLOAT ? left.real : left.number) * (right.type == AST_FLOAT ? right.real : right.number));
+                        break;
+                    case OP_DIVIDE:
+                        ret.number = (unsigned int) ((left.type == AST_FLOAT ? left.real : left.number) / (right.type == AST_FLOAT ? right.real : right.number));
+                        break;
+                }
+                break;
+                case AST_FLOAT:
+                switch (ast->op) {
+                    case OP_PLUS:
+                        ret.real = (float) ((left.type == AST_FLOAT ? left.real : left.number) + (right.type == AST_FLOAT ? right.real : right.number));
+                        break;
+                    case OP_MINUS:
+                        ret.real = (float) ((left.type == AST_FLOAT ? left.real : left.number) - (right.type == AST_FLOAT ? right.real : right.number));
+                        break;
+                    case OP_MULTIPLY:
+                        ret.real = (float) ((left.type == AST_FLOAT ? left.real : left.number) * (right.type == AST_FLOAT ? right.real : right.number));
+                        break;
+                    case OP_DIVIDE:
+                        ret.real = (float) ((left.type == AST_FLOAT ? left.real : left.number) / (right.type == AST_FLOAT ? right.real : right.number));
+                        break;
+                }
+                break;
+                }
+                return ret;
+            }
+        case AST_FLOAT:
+        case AST_NUMBER:
+            return (*ast);
+        default:
+            return (AST){0};
     }
+    // TODO: actually check for type here later when more AST types are added
 }
 
 int main() {
@@ -260,7 +358,20 @@ int main() {
             default:
                 if (is_number(c)) {
                     tok.type = TOKEN_NUMBER;
-                    tok.number = (unsigned int)(c - '0');
+                    while (is_number(buf[next]) || buf[next] == '.') {
+                        if (buf[next] == '.') tok.type = TOKEN_FLOAT;
+                        next++;
+                    }
+
+                    switch (tok.type) {
+                        case TOKEN_FLOAT:
+                            tok.real = float_from_str(&buf[start], next - start);
+                            break;
+                        case TOKEN_NUMBER:
+                            tok.number = float_from_str(&buf[start], next - start);
+                            break;
+                    }
+
                     array_append(tokens, tok);
                 } else {
                     printf("tokenizing error: unrecognized character \"%c\"\n", c);
@@ -287,7 +398,17 @@ int main() {
     AST *ast = parse_expression(&parser, 0);
 
     if (!parser.error) {
-        unsigned int result = evaluate_ast(ast);
-        printf("result: %u\n", result);
+        AST result = evaluate_ast(ast);
+        switch (result.type) {
+            case AST_BINARY_OP:
+                printf("error");
+                break;
+            case AST_FLOAT:
+                printf("float result: %f\n", result.real);
+                break;
+            case AST_NUMBER:
+                printf("unsigned result: %u\n", result.number);
+                break;
+        }
     }
 }
