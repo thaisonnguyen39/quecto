@@ -53,6 +53,8 @@ typedef enum {
     TOKEN_NUMBER,
     TOKEN_FLOAT,
     TOKEN_EOF,
+    TOKEN_OPEN_PAREN,
+    TOKEN_CLOSE_PAREN,
 
     TOKEN_COUNT // Make sure this token is the last one
                 // listed in the enum, as this is assumed by compile time assertions
@@ -63,6 +65,8 @@ const char *token_to_string_table[] = {
     [TOKEN_MINUS] = "-",
     [TOKEN_MULTIPLY] = "*",
     [TOKEN_DIVIDE] = "/",
+    [TOKEN_OPEN_PAREN] = "(",
+    [TOKEN_CLOSE_PAREN] = ")",
     [TOKEN_NUMBER] = "number",
     [TOKEN_FLOAT] = "float",
     [TOKEN_EOF] = "end of file"
@@ -81,13 +85,15 @@ typedef struct {
 
 void print_token(Token tok) {
     switch (tok.type) {
-        case TOKEN_PLUS:     printf("+\n"); break;
-        case TOKEN_MINUS:    printf("-\n"); break;
-        case TOKEN_MULTIPLY: printf("*\n"); break;
-        case TOKEN_DIVIDE:   printf("/\n"); break;
-        case TOKEN_NUMBER:   printf("%u\n", tok.number); break;
-        case TOKEN_FLOAT:    printf("%.2f\n", tok.real); break;
-        case TOKEN_EOF:      printf("EOF\n"); break;
+        case TOKEN_PLUS:        printf("+\n"); break;
+        case TOKEN_MINUS:       printf("-\n"); break;
+        case TOKEN_MULTIPLY:    printf("*\n"); break;
+        case TOKEN_DIVIDE:      printf("/\n"); break;
+        case TOKEN_NUMBER:      printf("%u\n", tok.number); break;
+        case TOKEN_FLOAT:       printf("%.2f\n", tok.real); break;
+        case TOKEN_EOF:         printf("EOF\n"); break;
+        case TOKEN_OPEN_PAREN:  printf("(\n"); break;
+        case TOKEN_CLOSE_PAREN: printf(")\n"); break;
     }
 }
 
@@ -143,7 +149,7 @@ int get_token_precedence_table[] = {
     [TOKEN_PLUS] = 1,
     [TOKEN_MINUS] = 1,
     [TOKEN_MULTIPLY] = 2,
-    [TOKEN_DIVIDE] = 2,
+    [TOKEN_DIVIDE] = 2
 };
 
 bool token_is_operator(TokenType type) {
@@ -186,16 +192,15 @@ AST *parse_expression(ParserState *parser, int min_prec) {
     switch (peek_next_token(parser)) {
         case TOKEN_FLOAT:
         case TOKEN_NUMBER:
+        case TOKEN_OPEN_PAREN:
+        case TOKEN_CLOSE_PAREN:
             break;
         default:
-            printf("parsing error: expected a \"number\" or a \"float\" but got a \"%s\" instead\n",
+            printf("parsing error: expected a \"number\" or a \"float\" or a \"parenthesis\" but got a \"%s\" instead\n",
                     token_to_string_table[peek_next_token(parser)]);
             parser->error = true;
             return NULL;
     }
-    // if (!match_next_token(parser, TOKEN_FLOAT)) {
-        // return NULL;
-    // }
 
     Token tok = get_next_token(parser);
 
@@ -209,15 +214,15 @@ AST *parse_expression(ParserState *parser, int min_prec) {
         case TOKEN_FLOAT:
             left->type = AST_FLOAT;
             left->real = tok.real;
+            break;
+        case TOKEN_OPEN_PAREN:
+            left = parse_expression(parser, 0);
+            if (!match_next_token(parser, TOKEN_CLOSE_PAREN)) return NULL;
+            get_next_token(parser);
+            break;            
     }
 
     if (peek_next_token(parser) == TOKEN_EOF) return left;
-
-    if (!token_is_operator(peek_next_token(parser))) {
-        printf("parsing error: expected an \"operator\" but got a \"%s\" instead\n",
-                token_to_string_table[peek_next_token(parser)]);
-        parser->error = true;
-    }
 
     while (get_token_precedence(peek_next_token(parser)) > min_prec) {
         AST *op = (AST *)malloc(sizeof(AST));
@@ -354,6 +359,14 @@ int main() {
                 tok.type = TOKEN_DIVIDE;
                 array_append(tokens, tok);
                 break;
+            case '(':
+                tok.type = TOKEN_OPEN_PAREN;
+                array_append(tokens, tok);
+                break;
+            case ')':
+                tok.type = TOKEN_CLOSE_PAREN;
+                array_append(tokens, tok);
+                break;
 
             default:
                 if (is_number(c)) {
@@ -368,7 +381,7 @@ int main() {
                             tok.real = float_from_str(&buf[start], next - start);
                             break;
                         case TOKEN_NUMBER:
-                            tok.number = float_from_str(&buf[start], next - start);
+                            tok.number = int_from_str(&buf[start], next - start);
                             break;
                     }
 
