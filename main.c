@@ -50,8 +50,8 @@ typedef enum {
     TOKEN_MINUS,
     TOKEN_MULTIPLY,
     TOKEN_DIVIDE,
-    TOKEN_NUMBER,
-    TOKEN_FLOAT,
+    TOKEN_INT_LIT,
+    TOKEN_FLOAT_LIT,
     TOKEN_EOF,
     TOKEN_OPEN_PAREN,
     TOKEN_CLOSE_PAREN,
@@ -67,19 +67,20 @@ const char *token_to_string_table[] = {
     [TOKEN_DIVIDE] = "/",
     [TOKEN_OPEN_PAREN] = "(",
     [TOKEN_CLOSE_PAREN] = ")",
-    [TOKEN_NUMBER] = "number",
-    [TOKEN_FLOAT] = "float",
+    [TOKEN_INT_LIT] = "integer literal",
+    [TOKEN_FLOAT_LIT] = "float literal",
     [TOKEN_EOF] = "end of file"
 };
 
 static_assert(sizeof(token_to_string_table) / sizeof(char *) == TOKEN_COUNT,
               "Every token must have a corresponding entry in the token to string table, so add an entry probably");
 
+// TODO: add row and column information here for more useful error messages
 typedef struct {
     TokenType type;
     union {
-        unsigned int number;
-        float real;
+        unsigned int int_lit;
+        float float_lit;
     };
 } Token;
 
@@ -89,8 +90,8 @@ void print_token(Token tok) {
         case TOKEN_MINUS:       printf("-\n"); break;
         case TOKEN_MULTIPLY:    printf("*\n"); break;
         case TOKEN_DIVIDE:      printf("/\n"); break;
-        case TOKEN_NUMBER:      printf("%u\n", tok.number); break;
-        case TOKEN_FLOAT:       printf("%.2f\n", tok.real); break;
+        case TOKEN_INT_LIT:     printf("%u\n", tok.int_lit); break;
+        case TOKEN_FLOAT_LIT:   printf("%.2f\n", tok.float_lit); break;
         case TOKEN_EOF:         printf("EOF\n"); break;
         case TOKEN_OPEN_PAREN:  printf("(\n"); break;
         case TOKEN_CLOSE_PAREN: printf(")\n"); break;
@@ -121,8 +122,8 @@ typedef struct {
 
 typedef enum {
     AST_BINARY_OP,
-    AST_NUMBER,
-    AST_FLOAT,
+    AST_INT_LIT,
+    AST_FLOAT_LIT,
 } ASTType;
 
 typedef enum {
@@ -140,8 +141,8 @@ typedef struct AST {
             struct AST *left;
             struct AST *right;
         };
-        unsigned int number;
-        float real;
+        unsigned int int_lit;
+        float float_lit;
     };
 } AST;
 
@@ -161,7 +162,6 @@ bool token_is_operator(TokenType type) {
 
 int get_token_precedence(TokenType type) {
     if (token_is_operator(type)) return get_token_precedence_table[type];
-
     return -1;
 }
 
@@ -175,7 +175,7 @@ bool match_next_token(ParserState *parser, TokenType type) {
     if (peek_next_token(parser) == type) {
         return true;
     } else {
-        printf("parsing error: expected a \"%s\" but got a \"%s\" instead\n",
+        printf("parsing error: expected \"%s\" but got \"%s\" instead\n",
                 token_to_string_table[type],
                 token_to_string_table[peek_next_token(parser)]);
         parser->error = true;
@@ -190,13 +190,12 @@ Token get_next_token(ParserState *parser) {
 
 AST *parse_expression(ParserState *parser, int min_prec) {
     switch (peek_next_token(parser)) {
-        case TOKEN_FLOAT:
-        case TOKEN_NUMBER:
+        case TOKEN_FLOAT_LIT:
+        case TOKEN_INT_LIT:
         case TOKEN_OPEN_PAREN:
-        case TOKEN_CLOSE_PAREN:
             break;
         default:
-            printf("parsing error: expected a \"number\" or a \"float\" or a \"parenthesis\" but got a \"%s\" instead\n",
+            printf("parsing error: expected \"integer literal\", \"float\", or \"(\" but got \"%s\" instead\n",
                     token_to_string_table[peek_next_token(parser)]);
             parser->error = true;
             return NULL;
@@ -207,22 +206,23 @@ AST *parse_expression(ParserState *parser, int min_prec) {
     AST *left = (AST *)malloc(sizeof(AST));
 
     switch (tok.type) {
-        case TOKEN_NUMBER:
-            left->type = AST_NUMBER;
-            left->number = tok.number;
+        case TOKEN_INT_LIT:
+            left->type = AST_INT_LIT;
+            left->int_lit = tok.int_lit;
             break;
-        case TOKEN_FLOAT:
-            left->type = AST_FLOAT;
-            left->real = tok.real;
+        case TOKEN_FLOAT_LIT:
+            left->type = AST_FLOAT_LIT;
+            left->float_lit = tok.float_lit;
             break;
         case TOKEN_OPEN_PAREN:
+            free(left);
             left = parse_expression(parser, 0);
+            if (parser->error) return NULL;
+
             if (!match_next_token(parser, TOKEN_CLOSE_PAREN)) return NULL;
             get_next_token(parser);
             break;            
     }
-
-    if (peek_next_token(parser) == TOKEN_EOF) return left;
 
     while (get_token_precedence(peek_next_token(parser)) > min_prec) {
         AST *op = (AST *)malloc(sizeof(AST));
@@ -245,15 +245,25 @@ AST *parse_expression(ParserState *parser, int min_prec) {
         }
 
         op->right = parse_expression(parser, get_token_precedence(tok.type));
-        if (parser->error) {
-            return NULL;
-        }
+        if (parser->error) return NULL;
 
         left = op;
     }
 
     return left;
 };
+
+AST *parse_program(ParserState *parser) {
+    AST *ret = parse_expression(parser, 0);
+    if (parser->error) return NULL;
+
+    if (!match_next_token(parser, TOKEN_EOF)) {
+        free(ret);
+        return NULL;
+    }
+
+    return ret;
+}
 
 AST evaluate_ast(AST *ast) {
     switch (ast->type) {
@@ -263,51 +273,62 @@ AST evaluate_ast(AST *ast) {
             AST left = evaluate_ast(ast->left);
             AST right = evaluate_ast(ast->right);
 
-            ret.type = (left.type == AST_NUMBER && right.type == AST_FLOAT || left.type == AST_FLOAT && right.type) ? AST_FLOAT : AST_NUMBER; // promotion
+            ret.type = (left.type == AST_INT_LIT && right.type == AST_FLOAT_LIT || left.type == AST_FLOAT_LIT && right.type) ? AST_FLOAT_LIT : AST_INT_LIT; // promotion
 
             switch (ret.type) {
-                case AST_NUMBER:
+                case AST_INT_LIT:
                 switch (ast->op) {
                     case OP_PLUS:
-                        ret.number = (unsigned int) ((left.type == AST_FLOAT ? left.real : left.number) + (right.type == AST_FLOAT ? right.real : right.number));
+                        ret.int_lit = (unsigned int) ((left.type == AST_FLOAT_LIT ? left.float_lit : left.int_lit) + (right.type == AST_FLOAT_LIT ? right.float_lit : right.int_lit));
                         break;
                     case OP_MINUS:
-                        ret.number = (unsigned int) ((left.type == AST_FLOAT ? left.real : left.number) - (right.type == AST_FLOAT ? right.real : right.number));
+                        ret.int_lit = (unsigned int) ((left.type == AST_FLOAT_LIT ? left.float_lit : left.int_lit) - (right.type == AST_FLOAT_LIT ? right.float_lit : right.int_lit));
                         break;
                     case OP_MULTIPLY:
-                        ret.number = (unsigned int) ((left.type == AST_FLOAT ? left.real : left.number) * (right.type == AST_FLOAT ? right.real : right.number));
+                        ret.int_lit = (unsigned int) ((left.type == AST_FLOAT_LIT ? left.float_lit : left.int_lit) * (right.type == AST_FLOAT_LIT ? right.float_lit : right.int_lit));
                         break;
                     case OP_DIVIDE:
-                        ret.number = (unsigned int) ((left.type == AST_FLOAT ? left.real : left.number) / (right.type == AST_FLOAT ? right.real : right.number));
+                        ret.int_lit = (unsigned int) ((left.type == AST_FLOAT_LIT ? left.float_lit : left.int_lit) / (right.type == AST_FLOAT_LIT ? right.float_lit : right.int_lit));
                         break;
                 }
                 break;
-                case AST_FLOAT:
+                case AST_FLOAT_LIT:
                 switch (ast->op) {
                     case OP_PLUS:
-                        ret.real = (float) ((left.type == AST_FLOAT ? left.real : left.number) + (right.type == AST_FLOAT ? right.real : right.number));
+                        ret.float_lit = (float) ((left.type == AST_FLOAT_LIT ? left.float_lit : left.int_lit) + (right.type == AST_FLOAT_LIT ? right.float_lit : right.int_lit));
                         break;
                     case OP_MINUS:
-                        ret.real = (float) ((left.type == AST_FLOAT ? left.real : left.number) - (right.type == AST_FLOAT ? right.real : right.number));
+                        ret.float_lit = (float) ((left.type == AST_FLOAT_LIT ? left.float_lit : left.int_lit) - (right.type == AST_FLOAT_LIT ? right.float_lit : right.int_lit));
                         break;
                     case OP_MULTIPLY:
-                        ret.real = (float) ((left.type == AST_FLOAT ? left.real : left.number) * (right.type == AST_FLOAT ? right.real : right.number));
+                        ret.float_lit = (float) ((left.type == AST_FLOAT_LIT ? left.float_lit : left.int_lit) * (right.type == AST_FLOAT_LIT ? right.float_lit : right.int_lit));
                         break;
                     case OP_DIVIDE:
-                        ret.real = (float) ((left.type == AST_FLOAT ? left.real : left.number) / (right.type == AST_FLOAT ? right.real : right.number));
+                        ret.float_lit = (float) ((left.type == AST_FLOAT_LIT ? left.float_lit : left.int_lit) / (right.type == AST_FLOAT_LIT ? right.float_lit : right.int_lit));
                         break;
                 }
                 break;
                 }
                 return ret;
             }
-        case AST_FLOAT:
-        case AST_NUMBER:
+        case AST_FLOAT_LIT:
+        case AST_INT_LIT:
             return (*ast);
         default:
             return (AST){0};
     }
     // TODO: actually check for type here later when more AST types are added
+}
+
+const char *register_list[] = { "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12" };
+bool register_free_list[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+static_assert(sizeof(register_list) / sizeof(char *) == sizeof(register_free_list) / sizeof(register_free_list[0]),
+              "The amount of registers and the size of the register free list must be the same. "
+              "Add a new spot in the free list if you added a new register");
+
+void generate_ast_assembly(FILE *file, AST *ast) {
+    
 }
 
 int main() {
@@ -370,18 +391,26 @@ int main() {
 
             default:
                 if (is_number(c)) {
-                    tok.type = TOKEN_NUMBER;
+                    tok.type = TOKEN_INT_LIT;
+                    int num_decimal_points = 0;
                     while (is_number(buf[next]) || buf[next] == '.') {
-                        if (buf[next] == '.') tok.type = TOKEN_FLOAT;
+                        if (buf[next] == '.') {
+                            tok.type = TOKEN_FLOAT_LIT;
+                            num_decimal_points++;
+                        }
                         next++;
                     }
 
+                    // TODO: need to break out of tokenization if error
+                    if (num_decimal_points > 1)
+                        printf("tokenizing error: too many decimal points in float literal\n");
+
                     switch (tok.type) {
-                        case TOKEN_FLOAT:
-                            tok.real = float_from_str(&buf[start], next - start);
+                        case TOKEN_FLOAT_LIT:
+                            tok.float_lit = float_from_str(&buf[start], next - start);
                             break;
-                        case TOKEN_NUMBER:
-                            tok.number = int_from_str(&buf[start], next - start);
+                        case TOKEN_INT_LIT:
+                            tok.int_lit = int_from_str(&buf[start], next - start);
                             break;
                     }
 
@@ -402,13 +431,12 @@ int main() {
     for (int i = 0; i < tokens.count; i++) {
         print_token(tokens.items[i]);
     }
-
     printf("\n");
 
     ParserState parser = {0};
     parser.tokens = tokens;
 
-    AST *ast = parse_expression(&parser, 0);
+    AST *ast = parse_program(&parser);
 
     if (!parser.error) {
         AST result = evaluate_ast(ast);
@@ -416,11 +444,11 @@ int main() {
             case AST_BINARY_OP:
                 printf("error");
                 break;
-            case AST_FLOAT:
-                printf("float result: %f\n", result.real);
+            case AST_FLOAT_LIT:
+                printf("float result: %f\n", result.float_lit);
                 break;
-            case AST_NUMBER:
-                printf("unsigned result: %u\n", result.number);
+            case AST_INT_LIT:
+                printf("unsigned result: %u\n", result.int_lit);
                 break;
         }
     }

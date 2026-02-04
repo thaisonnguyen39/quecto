@@ -1,0 +1,8 @@
+This isn't a super strict grammar with like BNF or anything, just a nice reference for the future when changing the parser.
+
+'*' means 0 or more times
+'+' means 1 or more times
+
+program = *(expr) EOF
+
+expr = ( '(' expr ')' or number ) *(operator expr)
