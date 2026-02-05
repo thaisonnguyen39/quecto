@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <assert.h>
 
 int int_from_str(const char* a, size_t len) {
@@ -183,23 +184,36 @@ bool match_next_token(ParserState *parser, TokenType type) {
     }
 }
 
+bool match_next_token_multiple(ParserState *parser, int count, ...) {
+    assert(count > 1 && "Just use match_next_token if you're only matching against one token type");
+    va_list args;
+    va_start(args, count);  
+    for (int i = 0; i < count; i++) {
+        TokenType type = va_arg(args, TokenType);
+        if (peek_next_token(parser) == type) return true;
+    }
+    va_end(args);
+    va_start(args, count);
+
+    parser->error = true;
+    printf("parsing error: expected ");
+    for (int i = 0; i < count - 1; i++) {
+        printf("\"%s\", ", token_to_string_table[va_arg(args, TokenType)]);
+    }
+    printf("or \"%s\", ", token_to_string_table[va_arg(args, TokenType)]);
+    printf("but got \"%s\" instead\n", token_to_string_table[peek_next_token(parser)]);
+
+    va_end(args);
+}
+
 Token get_next_token(ParserState *parser) {
     if (parser->current >= parser->tokens.count) return parser->tokens.items[parser->tokens.count - 1];;
     return parser->tokens.items[parser->current++];
 }
 
 AST *parse_expression(ParserState *parser, int min_prec) {
-    switch (peek_next_token(parser)) {
-        case TOKEN_FLOAT_LIT:
-        case TOKEN_INT_LIT:
-        case TOKEN_OPEN_PAREN:
-            break;
-        default:
-            printf("parsing error: expected \"integer literal\", \"float\", or \"(\" but got \"%s\" instead\n",
-                    token_to_string_table[peek_next_token(parser)]);
-            parser->error = true;
-            return NULL;
-    }
+    if (!match_next_token_multiple(parser, 3, TOKEN_FLOAT_LIT, TOKEN_INT_LIT, TOKEN_OPEN_PAREN))
+        return NULL;
 
     Token tok = get_next_token(parser);
 
@@ -320,15 +334,26 @@ AST evaluate_ast(AST *ast) {
     // TODO: actually check for type here later when more AST types are added
 }
 
-const char *register_list[] = { "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12" };
-bool register_free_list[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+typedef enum {
+    BITS_8,
+    BITS_16,
+    BITS_32,
+    BITS_64,
+} RegisterSizes;
 
-static_assert(sizeof(register_list) / sizeof(char *) == sizeof(register_free_list) / sizeof(register_free_list[0]),
+const char *register_list[][4] = {
+    [BITS_8]  = { "al",  "bl",  "cl",  "dl" },
+    [BITS_16] = { "ax",  "bx",  "cx",  "dx", },
+    [BITS_32] = { "eax", "ebx", "ecx", "edx" },
+    [BITS_64] = { "rax", "rbx", "rcx", "rdx" }
+};
+bool register_free_list[] = { 0, 0, 0, 0 };
+
+/*static_assert(sizeof(register_list) / sizeof(char *) == sizeof(register_free_list) / sizeof(register_free_list[0]),
               "The amount of registers and the size of the register free list must be the same. "
-              "Add a new spot in the free list if you added a new register");
+              "Add a new spot in the free list if you added a new register");*/
 
 void generate_ast_assembly(FILE *file, AST *ast) {
-    
 }
 
 int main() {
@@ -352,15 +377,17 @@ int main() {
 
     size_t start = 0;
     size_t next = 0;
+    size_t row = 1;
+    size_t column = 1;
     while (start < buf_size) {
         char c = buf[next++];
 
         Token tok = {0};
 
         switch (c) {
+            case '\n':
             case ' ':
             case '\t':
-            case '\n':
             case '\r':
                 break;
 
