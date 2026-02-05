@@ -1,4 +1,4 @@
-main: main.c
-	gcc -o main main.c
+main: src/main.c
+	gcc -I include src/*.c -o main
 
 tests:

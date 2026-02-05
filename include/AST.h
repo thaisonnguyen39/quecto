@@ -1,0 +1,34 @@
+#ifndef AST_H
+#define AST_H
+
+#include "lexer.h"
+
+typedef enum {
+    AST_BINARY_OP,
+    AST_INT_LIT,
+    AST_FLOAT_LIT,
+} ASTType;
+
+typedef enum {
+    OP_PLUS,
+    OP_MINUS,
+    OP_MULTIPLY,
+    OP_DIVIDE,
+} BinaryOp;
+
+typedef struct AST {
+    ASTType type;
+    union {
+        struct {
+            BinaryOp op;
+            struct AST *left;
+            struct AST *right;
+        };
+        unsigned int int_lit;
+        float float_lit;
+    };
+} AST;
+
+AST evaluate_ast(AST *ast);
+
+#endif
