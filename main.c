@@ -1,8 +1,11 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <sys/_types/_null.h>
+#include <sys/_types/_va_list.h>
 
 int int_from_str(const char* a, size_t len) {
     int tens = 1;
@@ -83,6 +86,7 @@ typedef struct {
         unsigned int int_lit;
         float float_lit;
     };
+    unsigned int row, col;
 } Token;
 
 void print_token(Token tok) {
@@ -98,6 +102,7 @@ void print_token(Token tok) {
         case TOKEN_CLOSE_PAREN: printf(")\n"); break;
     }
 }
+
 
 typedef struct {
     Token *items;
@@ -120,6 +125,18 @@ typedef struct {
     int current;
     bool error;
 } ParserState;
+
+int print_parser_error(ParserState *parser, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+
+    Token *tok = &parser->tokens.items[parser->current];
+    printf("parser error at (line: %d, column: %d): ", tok->row, tok->col);
+    int result = vprintf(format, args);
+
+    va_end(args);
+    return result;
+}
 
 typedef enum {
     AST_BINARY_OP,
@@ -176,9 +193,9 @@ bool match_next_token(ParserState *parser, TokenType type) {
     if (peek_next_token(parser) == type) {
         return true;
     } else {
-        printf("parsing error: expected \"%s\" but got \"%s\" instead\n",
-                token_to_string_table[type],
-                token_to_string_table[peek_next_token(parser)]);
+        print_parser_error(parser,"expected \"%s\" but got \"%s\" instead\n",
+            token_to_string_table[type],
+            token_to_string_table[peek_next_token(parser)]);
         parser->error = true;
         return false;
     }
@@ -187,7 +204,7 @@ bool match_next_token(ParserState *parser, TokenType type) {
 bool match_next_token_multiple(ParserState *parser, int count, ...) {
     assert(count > 1 && "Just use match_next_token if you're only matching against one token type");
     va_list args;
-    va_start(args, count);  
+    va_start(args, count);
     for (int i = 0; i < count; i++) {
         TokenType type = va_arg(args, TokenType);
         if (peek_next_token(parser) == type) return true;
@@ -196,7 +213,7 @@ bool match_next_token_multiple(ParserState *parser, int count, ...) {
     va_start(args, count);
 
     parser->error = true;
-    printf("parsing error: expected ");
+    print_parser_error(parser, "");
     for (int i = 0; i < count - 1; i++) {
         printf("\"%s\", ", token_to_string_table[va_arg(args, TokenType)]);
     }
@@ -235,7 +252,7 @@ AST *parse_expression(ParserState *parser, int min_prec) {
 
             if (!match_next_token(parser, TOKEN_CLOSE_PAREN)) return NULL;
             get_next_token(parser);
-            break;            
+            break;
     }
 
     while (get_token_precedence(peek_next_token(parser)) > min_prec) {
@@ -381,11 +398,18 @@ int main() {
     size_t column = 1;
     while (start < buf_size) {
         char c = buf[next++];
+        size_t column_width = 1;
 
-        Token tok = {0};
+        Token tok = {
+            .col = column,
+            .row = row,
+        };
 
         switch (c) {
             case '\n':
+                column = 0;
+                row++;
+                break;
             case ' ':
             case '\t':
             case '\r':
@@ -441,6 +465,8 @@ int main() {
                             break;
                     }
 
+                    column_width = next - start;
+
                     array_append(tokens, tok);
                 } else {
                     printf("tokenizing error: unrecognized character \"%c\"\n", c);
@@ -448,6 +474,7 @@ int main() {
                 break;
         }
 
+        column += column_width;
         start = next;
     }
 
