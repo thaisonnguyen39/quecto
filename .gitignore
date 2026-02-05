@@ -1,3 +1,6 @@
 main
 bin/
 build/
+compile_commands.json
+.clangd/
+.vscode/
