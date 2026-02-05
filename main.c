@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <assert.h>
-#include <sys/_types/_null.h>
-#include <sys/_types/_va_list.h>
 
 int int_from_str(const char* a, size_t len) {
     int tens = 1;
