@@ -118,6 +118,13 @@ typedef struct {
         array.items[array.count++] = item;\
     } while (0)
 
+// TODO: maybe realloc to a lower array size in the futuresize in the future
+#define array_pop(array)\
+    do {\
+        if (array.count != 0) array.count--;\
+    } while(0)
+
+// TODO: should probably allocate all ASTs into an arena allocator
 typedef struct {
     TokenArray tokens;
     int current;
@@ -368,7 +375,71 @@ bool register_free_list[] = { 0, 0, 0, 0 };
               "The amount of registers and the size of the register free list must be the same. "
               "Add a new spot in the free list if you added a new register");*/
 
-void generate_ast_assembly(FILE *file, AST *ast) {
+typedef enum {
+    LOC_REGISTER,
+    LOC_STACK
+} LocType;
+
+typedef struct {
+    LocType type;
+    union {
+        int stack_offset; // positive offset from rsp
+        int register_index;
+    };
+} Loc;
+
+// returns -1 if no registers are available
+int allocate_register() {
+    for (int i = 0; i < sizeof(register_free_list); i++) {
+        if (register_free_list[i] == 0) {
+            register_free_list[i] = 1;
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+void free_register(int reg) {
+    register_free_list[reg] = 0;
+}
+
+void generate_load_register_with_int(FILE *file, int reg, int val) {
+    // TODO
+}
+
+void generate_add_registers(FILE *file, int reg1, int reg2) {
+    // TODO
+}
+
+Loc generate_ast_assembly(FILE *file, AST *ast) {
+    // NOTE: will only support integers for now to simplify the register allocation
+    // also register allocation can fail, so that needs to be checked in the future
+    if (ast->type == AST_INT_LIT) {
+        int reg = allocate_register();
+        load_register_with_int(file, reg, ast->int_lit);
+        Loc loc = {
+            .type = LOC_REGISTER,
+            .register_index = reg
+        };
+
+        return loc;
+    }
+
+    Loc loc_left = generate_ast_assembly(file, ast->left);
+    Loc loc_right = generate_ast_assembly(file, ast->right);
+
+    switch (ast->op) {
+        case OP_PLUS:
+            
+            break;
+        case OP_MINUS:
+            break;
+        case OP_MULTIPLY:
+            break;
+        case OP_DIVIDE:
+            break;
+    }
 }
 
 int main() {
@@ -405,7 +476,7 @@ int main() {
 
         switch (c) {
             case '\n':
-                column = 0;
+                column = 1;
                 row++;
                 break;
             case ' ':
