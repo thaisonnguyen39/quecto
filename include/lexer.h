@@ -7,6 +7,7 @@ typedef enum {
     TOKEN_PLUS,
     TOKEN_MINUS,
     TOKEN_MULTIPLY,
+    TOKEN_SEMICOLON,
     TOKEN_DIVIDE,
     TOKEN_EQUALS,
     TOKEN_INT_LIT,

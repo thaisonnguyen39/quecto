@@ -37,6 +37,20 @@ void generate_add_registers(FILE *file, int reg1, int reg2) {
     fprintf(file, "\tadd\t%s, %s\n", register_list[BIT_32][reg1], register_list[BIT_32][reg2]);
 }
 
+void generate_subtract_registers(FILE *file, int reg1, int reg2) {
+    fprintf(file, "\tsub\t%s, %s\n", register_list[BIT_32][reg1], register_list[BIT_32][reg2]);
+}
+
+void generate_multiply_registers(FILE *file, int reg1, int reg2) {
+    fprintf(file, "\timul\t%s, %s\n", register_list[BIT_32][reg1], register_list[BIT_32][reg2]);
+}
+
+void generate_divide_registers(FILE *file, int reg1, int reg2) {
+    // TODO: in order to implement division we need to implement evicting registers onto the stack
+    assert(0);
+    // fprintf(file, "\tdiv\t%s, %s\n", register_list[BIT_32][reg1], register_list[BIT_32][reg2]);
+}
+
 Loc generate_ast_assembly(FILE *file, AST *ast) {
     assert(ast->type != AST_FLOAT_LIT);
 
@@ -57,14 +71,18 @@ Loc generate_ast_assembly(FILE *file, AST *ast) {
         case OP_PLUS:
             generate_add_registers(file, loc_left.register_index, loc_right.register_index);
             free_register(loc_right.register_index);
-            break;
+            return loc_left;
         case OP_MINUS:    
-            break;
+            generate_subtract_registers(file, loc_left.register_index, loc_right.register_index);
+            free_register(loc_right.register_index);
+            return loc_left;
         case OP_MULTIPLY:
-            break;
+            generate_multiply_registers(file, loc_left.register_index, loc_right.register_index);
+            free_register(loc_right.register_index);
+            return loc_left;
         case OP_DIVIDE: 
-            break;
+            generate_divide_registers(file, loc_left.register_index, loc_right.register_index);
+            free_register(loc_right.register_index);
+            return loc_left;
     }
-    
-    return (Loc){0};
 }

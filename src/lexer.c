@@ -7,6 +7,7 @@ const char *token_to_string_table[] = {
     [TOKEN_DIVIDE] = "/",
     [TOKEN_OPEN_PAREN] = "(",
     [TOKEN_CLOSE_PAREN] = ")",
+    [TOKEN_SEMICOLON] = ";",
     [TOKEN_INT_LIT] = "integer literal",
     [TOKEN_FLOAT_LIT] = "float literal",
     [TOKEN_EQUALS] = "=",
@@ -64,6 +65,7 @@ void print_token(Token tok) {
         case TOKEN_MINUS:       printf("-\n"); break;
         case TOKEN_MULTIPLY:    printf("*\n"); break;
         case TOKEN_DIVIDE:      printf("/\n"); break;
+        case TOKEN_SEMICOLON : printf(";\n"); break;
         case TOKEN_INT_LIT:     printf("%u\n", tok.int_lit); break;
         case TOKEN_FLOAT_LIT:   printf("%.2f\n", tok.float_lit); break;
         case TOKEN_EOF:         printf("EOF\n"); break;
