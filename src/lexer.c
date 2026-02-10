@@ -126,6 +126,10 @@ TokenArray tokenize(const char* buf, size_t buf_size) {
                 tok.type = TOKEN_CLOSE_PAREN;
                 array_append(tokens, tok);
                 break;
+            case '=':
+                tok.type = TOKEN_ASSIGN;
+                array_append(tokens, tok);
+                break;
 
             default:
                 if (is_number(c)) {

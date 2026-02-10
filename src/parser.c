@@ -5,13 +5,14 @@ int get_token_precedence_table[] = {
     [TOKEN_MINUS] = 1,
     [TOKEN_MULTIPLY] = 2,
     [TOKEN_DIVIDE] = 2,
-    [TOKEN_ASSIGN] = 0,
+    [TOKEN_ASSIGN] = 1,
 };
 
 bool token_is_operator(TokenType type) {
     return type == TOKEN_PLUS     ||
            type == TOKEN_MINUS    ||
            type == TOKEN_MULTIPLY ||
+           type == TOKEN_ASSIGN   ||
            type == TOKEN_DIVIDE;
 }
 
