@@ -4,3 +4,6 @@ build/
 compile_commands.json
 .clangd/
 .vscode/
+out.S
+out.o
+out

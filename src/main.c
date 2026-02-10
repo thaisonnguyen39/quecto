@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "lexer.h"
 #include "parser.h"
 #include "AST.h"
+#include "codegen.h"
 
 int main() {
     FILE *f = fopen("hello.q", "r");
@@ -123,7 +125,7 @@ int main() {
     AST *ast = parse_program(&parser);
 
     if (!parser.error) {
-        AST result = evaluate_ast(ast);
+        /*AST result = evaluate_ast(ast);
         switch (result.type) {
             case AST_BINARY_OP:
                 printf("error");
@@ -134,6 +136,19 @@ int main() {
             case AST_INT_LIT:
                 printf("unsigned result: %u\n", result.int_lit);
                 break;
-        }
+        }*/
+        FILE *out = fopen("out.S", "w");
+
+        fprintf(out, "\tglobal\t_start\n\n");
+        fprintf(out, "\tsection\t.text\n");
+        fprintf(out, "_start:\n");
+
+        Loc ret = generate_ast_assembly(out, ast);
+
+        fprintf(out, "\tmov\tedi, %s\n", register_list[BIT_32][ret.register_index]);
+        fprintf(out, "\tmov\teax, 60\n");
+        fprintf(out, "\tsyscall\n");
+
+        fclose(out);
     }
 }

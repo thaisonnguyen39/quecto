@@ -6,10 +6,10 @@
 #include "AST.h"
 
 typedef enum {
-    BITS_8,
-    BITS_16,
-    BITS_32,
-    BITS_64,
+    BIT_8,
+    BIT_16,
+    BIT_32,
+    BIT_64,
 } RegisterSizes;
 
 typedef enum {
@@ -20,7 +20,7 @@ typedef enum {
 typedef struct {
     LocType type;
     union {
-        int stack_offset; // positive offset from rsp
+        int stack_offset; // negative offset from rbp
         int register_index;
     };
 } Loc;

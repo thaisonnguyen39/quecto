@@ -6,3 +6,10 @@ parser, and tree-walking interpreter already in place that merely need to be add
 the language ever further.
 
 It supports operations between floating point and unsigned integers and currently promotes unsigned integers to floats if mixed in operations.
+
+For assembly output, I only added addition for now. The assembly program exits with the result of the expression. If your shell or editor
+does not automatically display the exit code upon process exit, run
+```bash
+echo $?
+```
+to view the exit code.
