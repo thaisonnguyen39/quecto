@@ -10,7 +10,7 @@ const char *token_to_string_table[] = {
     [TOKEN_SEMICOLON] = ";",
     [TOKEN_INT_LIT] = "integer literal",
     [TOKEN_FLOAT_LIT] = "float literal",
-    [TOKEN_EQUALS] = "=",
+    [TOKEN_ASSIGN] = "=",
     [TOKEN_EOF] = "end of file"
 };
 
@@ -71,6 +71,6 @@ void print_token(Token tok) {
         case TOKEN_EOF:         printf("EOF\n"); break;
         case TOKEN_OPEN_PAREN:  printf("(\n"); break;
         case TOKEN_CLOSE_PAREN: printf(")\n"); break;
-        case TOKEN_EQUALS:      printf("=\n"); break;
+        case TOKEN_ASSIGN:      printf("=\n"); break;
     }
 }

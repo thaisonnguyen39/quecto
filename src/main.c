@@ -73,7 +73,7 @@ int main() {
                 array_append(tokens, tok);
                 break;
             case '=':
-                tok.type = TOKEN_EQUALS;
+                tok.type = TOKEN_ASSIGN;
                 array_append(tokens, tok);
                 break;
 
