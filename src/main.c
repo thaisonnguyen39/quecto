@@ -6,6 +6,14 @@
 #include "AST.h"
 #include "codegen.h"
 
+#ifdef __MACH__
+#define EXIT_STATUS "0x2000001"
+#define ENTRY_SYMBOL "_main"
+#else
+#define EXIT_STATUS "60"
+#define ENTRY_SYMBOL "_start"
+#endif
+
 int main() {
     FILE *f = fopen("hello.q", "r");
 
@@ -23,100 +31,7 @@ int main() {
 
     printf("%s\n", buf);
 
-    TokenArray tokens = {0};
-
-    size_t start = 0;
-    size_t next = 0;
-    size_t row = 1;
-    size_t column = 1;
-    while (start < buf_size) {
-        char c = buf[next++];
-        size_t column_width = 1;
-
-        Token tok = {
-            .col = column,
-            .row = row,
-        };
-
-        switch (c) {
-            case '\n':
-                column = 1;
-                row++;
-                break;
-            case ' ':
-            case '\t':
-            case '\r':
-                break;
-
-            case '+':
-                tok.type = TOKEN_PLUS;
-                array_append(tokens, tok);
-                break;
-            case '-':
-                tok.type = TOKEN_MINUS;
-                array_append(tokens, tok);
-                break;
-            case '*':
-                tok.type = TOKEN_MULTIPLY;
-                array_append(tokens, tok);
-                break;
-            case '/':
-                tok.type = TOKEN_DIVIDE;
-                array_append(tokens, tok);
-                break;
-            case '(':
-                tok.type = TOKEN_OPEN_PAREN;
-                array_append(tokens, tok);
-                break;
-            case ')':
-                tok.type = TOKEN_CLOSE_PAREN;
-                array_append(tokens, tok);
-                break;
-            case '=':
-                tok.type = TOKEN_ASSIGN;
-                array_append(tokens, tok);
-                break;
-
-            default:
-                if (is_number(c)) {
-                    tok.type = TOKEN_INT_LIT;
-                    int num_decimal_points = 0;
-                    while (is_number(buf[next]) || buf[next] == '.') {
-                        if (buf[next] == '.') {
-                            tok.type = TOKEN_FLOAT_LIT;
-                            num_decimal_points++;
-                        }
-                        next++;
-                    }
-
-                    if (num_decimal_points > 1)
-                        printf("tokenizing error: too many decimal points in float literal\n");
-
-                    switch (tok.type) {
-                        case TOKEN_FLOAT_LIT:
-                            tok.float_lit = float_from_str(&buf[start], next - start);
-                            break;
-                        case TOKEN_INT_LIT:
-                            tok.int_lit = int_from_str(&buf[start], next - start);
-                            break;
-                    }
-
-                    column_width = next - start;
-
-                    array_append(tokens, tok);
-                } else {
-                    printf("tokenizing error: unrecognized character \"%c\"\n", c);
-                }
-                break;
-        }
-
-        column += column_width;
-        start = next;
-    }
-
-    Token tok_eof = {0};
-    tok_eof.type = TOKEN_EOF;
-    array_append(tokens, tok_eof);
+    TokenArray tokens = tokenize(buf, buf_size);
 
     for (int i = 0; i < tokens.count; i++) {
         print_token(tokens.items[i]);
@@ -143,14 +58,14 @@ int main() {
         }*/
         FILE *out = fopen("out.S", "w");
 
-        fprintf(out, "\tglobal\t_start\n\n");
+        fprintf(out, "\tglobal\t" ENTRY_SYMBOL "\n\n");
         fprintf(out, "\tsection\t.text\n");
-        fprintf(out, "_start:\n");
+        fprintf(out, ENTRY_SYMBOL ":\n");
 
         Loc ret = generate_ast_assembly(out, ast);
 
         fprintf(out, "\tmov\tedi, %s\n", register_list[BIT_32][ret.register_index]);
-        fprintf(out, "\tmov\teax, 60\n");
+        fprintf(out, "\tmov\teax, " EXIT_STATUS "\n");
         fprintf(out, "\tsyscall\n");
 
         fclose(out);

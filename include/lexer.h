@@ -40,5 +40,6 @@ int int_from_str(const char* a, size_t len);
 float float_from_str(const char* a, size_t len);
 bool is_number(char c);
 void print_token(Token tok);
+TokenArray tokenize(const char* buf, size_t buf_size);
 
 #endif

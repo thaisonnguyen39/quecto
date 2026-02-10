@@ -7,3 +7,5 @@ compile_commands.json
 out.S
 out.o
 out
+a.out
+.cache/
