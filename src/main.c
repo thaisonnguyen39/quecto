@@ -6,6 +6,14 @@
 #include "AST.h"
 #include "codegen.h"
 
+#ifdef __MACH__
+#define EXIT_STATUS "0x2000001"
+#define ENTRY_SYMBOL "_main"
+#else
+#define EXIT_STATUS "60"
+#define ENTRY_SYMBOL "_start"
+#endif
+
 int main() {
     FILE *f = fopen("hello.q", "r");
 
@@ -139,14 +147,14 @@ int main() {
         }*/
         FILE *out = fopen("out.S", "w");
 
-        fprintf(out, "\tglobal\t_start\n\n");
+        fprintf(out, "\tglobal\t" ENTRY_SYMBOL "\n\n");
         fprintf(out, "\tsection\t.text\n");
-        fprintf(out, "_start:\n");
+        fprintf(out, ENTRY_SYMBOL ":\n");
 
         Loc ret = generate_ast_assembly(out, ast);
 
         fprintf(out, "\tmov\tedi, %s\n", register_list[BIT_32][ret.register_index]);
-        fprintf(out, "\tmov\teax, 60\n");
+        fprintf(out, "\tmov\teax, " EXIT_STATUS "\n");
         fprintf(out, "\tsyscall\n");
 
         fclose(out);
