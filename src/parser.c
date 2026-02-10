@@ -1,10 +1,11 @@
-#include "parser.h"
+#include "../include/parser.h"
 
 int get_token_precedence_table[] = {
     [TOKEN_PLUS] = 1,
     [TOKEN_MINUS] = 1,
     [TOKEN_MULTIPLY] = 2,
-    [TOKEN_DIVIDE] = 2
+    [TOKEN_DIVIDE] = 2,
+    [TOKEN_EQUALS] = 0,
 };
 
 bool token_is_operator(TokenType type) {

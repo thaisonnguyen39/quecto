@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include "lexer.h"
-#include "parser.h"
+#include "../include/parser.h"
 #include "AST.h"
 #include "codegen.h"
 
@@ -70,6 +70,10 @@ int main() {
                 break;
             case ')':
                 tok.type = TOKEN_CLOSE_PAREN;
+                array_append(tokens, tok);
+                break;
+            case '=':
+                tok.type = TOKEN_EQUALS;
                 array_append(tokens, tok);
                 break;
 
